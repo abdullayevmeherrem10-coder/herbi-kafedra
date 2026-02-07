@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// İstifadəçi modeli
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  role          Role      @default(STUDENT)
+  avatarUrl     String?   @map("avatar_url")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  enrollments   Enrollment[]
+  progress      Progress[]
+
+  @@map("users")
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+// Fənn/Kurs modeli
+model Course {
+  id            String    @id @default(cuid())
+  title         String
+  slug          String    @unique
+  description   String?
+  imageUrl      String?   @map("image_url")
+  code          String    // Məs: HMH, HMT, ÜH-2
+  duration      Int       // Saat ilə
+  maxStudents   Int       @default(50) @map("max_students")
+  level         String    // Məs: IV kurslar, II kurslar, I kurslar
+  groups        String[]  // Məs: ["YT22A1", "YT22A2"]
+  category      String?   // Məs: Mühəndis Kəşfiyyatı
+  isPublished   Boolean   @default(false) @map("is_published")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  lessons       Lesson[]
+  enrollments   Enrollment[]
+
+  @@map("courses")
+}
+
+// Dərs/Mühazirə modeli
+model Lesson {
+  id            String    @id @default(cuid())
+  title         String
+  slug          String
+  description   String?
+  content       String?   @db.Text
+  videoUrl      String?   @map("video_url")
+  duration      Int?      // Dəqiqə ilə
+  order         Int
+  isPublished   Boolean   @default(false) @map("is_published")
+  courseId      String    @map("course_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress      Progress[]
+
+  @@unique([courseId, slug])
+  @@map("lessons")
+}
+
+// Qeydiyyat modeli (Tələbənin kursa yazılması)
+model Enrollment {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  courseId       String    @map("course_id")
+  enrolledAt    DateTime  @default(now()) @map("enrolled_at")
+  completedAt   DateTime? @map("completed_at")
+  status        EnrollmentStatus @default(ACTIVE)
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("enrollments")
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+// Proqres modeli (Tələbənin dərsdəki irəliləyişi)
+model Progress {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  lessonId      String    @map("lesson_id")
+  completed     Boolean   @default(false)
+  timeSpent     Int       @default(0) @map("time_spent") // Saniyə ilə
+  quizScore     Int?      @map("quiz_score")
+  quizTotal     Int?      @map("quiz_total")
+  completedAt   DateTime? @map("completed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson        Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@map("progress")
+}
+
+// Kollokvium modeli
+model Quiz {
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  courseId       String    @map("course_id")
+  scheduledAt   DateTime? @map("scheduled_at")
+  duration      Int?      // Dəqiqə ilə
+  totalQuestions Int      @default(0) @map("total_questions")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  results       QuizResult[]
+
+  @@map("quizzes")
+}
+
+// Kollokvium nəticəsi
+model QuizResult {
+  id            String    @id @default(cuid())
+  quizId        String    @map("quiz_id")
+  userId        String    @map("user_id")
+  correctAnswers Int      @default(0) @map("correct_answers")
+  wrongAnswers  Int       @default(0) @map("wrong_answers")
+  score         Float     @default(0)
+  completedAt   DateTime  @default(now()) @map("completed_at")
+
+  quiz          Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, userId])
+  @@map("quiz_results")
+}
