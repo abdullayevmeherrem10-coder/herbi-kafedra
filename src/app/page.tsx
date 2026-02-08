@@ -4,7 +4,7 @@ import CoursesSection from "@/components/landing/CoursesSection";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-light-rays">
       <Header />
       <HeroSection />
       <CoursesSection />

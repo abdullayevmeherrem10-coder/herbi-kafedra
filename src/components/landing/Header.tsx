@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { BookOpen, Menu, X, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { useState, useCallback } from "react";
+import { signIn, signOut, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 const navLinks = [
   { label: "Sərbəst işlərin mövzuları", href: "/serbest-isler" },
@@ -10,10 +12,91 @@ const navLinks = [
   { label: "Kollokvium vaxtları", href: "/kollokvium" },
 ];
 
+// Maksimum input uzunluqları (buffer overflow / DoS qorunması)
+const MAX_EMAIL_LENGTH = 255;
+const MAX_PASSWORD_LENGTH = 128;
+
 export default function Header() {
+  const { data: session } = useSession();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [rememberPassword, setRememberPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  // Honeypot sahəsi - botlar tərəfindən doldurulur, əsl istifadəçilər görmür
+  const [honeypot, setHoneypot] = useState("");
+
+  // Client-side rate limiting (əlavə qorunma təbəqəsi)
+  const isClientBlocked = loginAttempts >= 5;
+
+  const handleLogin = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    // Honeypot yoxlanışı - bot aşkarlanması
+    if (honeypot) {
+      // Bot aşkar edildi - saxta uğurlu cavab göndər (bot-u aldatmaq üçün)
+      setLoading(true);
+      setTimeout(() => setLoading(false), 2000);
+      return;
+    }
+
+    // Client-side rate limiting
+    if (isClientBlocked) {
+      setError("Çox sayda uğursuz cəhd. Zəhmət olmasa bir az gözləyin.");
+      return;
+    }
+
+    // Client-side validasiya
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) {
+      setError("Email daxil edin");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError("Düzgün email formatı daxil edin");
+      return;
+    }
+    if (!password) {
+      setError("Şifrə daxil edin");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await signIn("credentials", {
+        email: trimmedEmail,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setLoginAttempts((prev) => prev + 1);
+        setError(result.error);
+        // Şifrəni təmizlə (təhlükəsizlik üçün)
+        setPassword("");
+      } else if (result?.ok) {
+        setModalOpen(false);
+        setEmail("");
+        setPassword("");
+        setLoginAttempts(0);
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch {
+      setError("Giriş zamanı xəta baş verdi. Zəhmət olmasa yenidən cəhd edin.");
+    } finally {
+      setLoading(false);
+    }
+  }, [email, password, isClientBlocked, honeypot, router]);
+
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: "/" });
+  };
 
   return (
     <>
@@ -41,12 +124,29 @@ export default function Header() {
           </nav>
 
           <div className="hidden sm:flex items-center">
-            <button
-              onClick={() => setModalOpen(true)}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-medium rounded-xl px-5 py-2.5 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              Sistemə Giriş
-            </button>
+            {session?.user ? (
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/dashboard"
+                  className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                >
+                  Panel
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl px-4 py-2 transition-all duration-200"
+                >
+                  Çıxış
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setModalOpen(true)}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-medium rounded-xl px-5 py-2.5 transition-all duration-200 shadow-sm hover:shadow-md"
+              >
+                Sistemə Giriş
+              </button>
+            )}
           </div>
 
           <button
@@ -76,73 +176,129 @@ export default function Header() {
                 </Link>
               ))}
               <div className="pt-3 mt-2 border-t border-gray-100">
-                <button
-                  onClick={() => { setMobileMenuOpen(false); setModalOpen(true); }}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-medium rounded-xl px-5 py-3 transition-all duration-200"
-                >
-                  Sistemə Giriş
-                </button>
+                {session?.user ? (
+                  <button
+                    onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl px-5 py-3 transition-all duration-200"
+                  >
+                    Çıxış
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setMobileMenuOpen(false); setModalOpen(true); }}
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-medium rounded-xl px-5 py-3 transition-all duration-200"
+                  >
+                    Sistemə Giriş
+                  </button>
+                )}
               </div>
             </nav>
           </div>
         )}
       </header>
 
-      {/* Modal */}
+      {/* Təhlükəsiz Login Modal */}
       {modalOpen && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}
         >
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 overflow-hidden">
-            {/* Modal Header */}
             <div className="flex items-center justify-between px-6 pt-6 pb-2">
               <h2 className="text-lg font-semibold text-gray-800">Sistemə Giriş</h2>
               <button
-                onClick={() => setModalOpen(false)}
+                onClick={() => { setModalOpen(false); setError(""); }}
                 className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <X className="h-5 w-5 text-gray-400" />
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form className="p-6 space-y-5" onSubmit={(e) => e.preventDefault()}>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  İstifadəçi adı
-                </label>
+            <form className="p-6 space-y-5" onSubmit={handleLogin} noValidate>
+              {/* Honeypot sahəsi - botlar üçün tələ (CSS ilə gizlədilir) */}
+              <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
+                <label htmlFor="website">Veb sayt</label>
                 <input
                   type="text"
-                  className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  id="website"
+                  name="website"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
+              </div>
+
+              {/* Xəta mesajı */}
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value.slice(0, MAX_EMAIL_LENGTH))}
+                  placeholder="nümunə@email.com"
+                  autoComplete="email"
+                  required
+                  disabled={loading}
+                  className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Şifrə
                 </label>
-                <input
-                  type="password"
-                  className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value.slice(0, MAX_PASSWORD_LENGTH))}
+                    autoComplete="current-password"
+                    required
+                    disabled={loading}
+                    className="w-full px-4 py-2.5 pr-10 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="remember"
-                  checked={rememberPassword}
-                  onChange={(e) => setRememberPassword(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                />
-                <label htmlFor="remember" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
-                  Şifrəni yadda saxla
-                </label>
-              </div>
+
+              {/* Rate limit xəbərdarlığı */}
+              {loginAttempts >= 3 && (
+                <p className="text-xs text-amber-600">
+                  {5 - loginAttempts} cəhd qalıb. Bundan sonra müvəqqəti bloklanacaqsınız.
+                </p>
+              )}
+
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-medium rounded-xl px-5 py-2.5 transition-all duration-200 shadow-sm hover:shadow-md"
+                disabled={loading || isClientBlocked}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-medium rounded-xl px-5 py-2.5 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Daxil ol
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Yoxlanılır...
+                  </>
+                ) : isClientBlocked ? (
+                  "Müvəqqəti bloklanıb"
+                ) : (
+                  "Daxil ol"
+                )}
               </button>
             </form>
           </div>

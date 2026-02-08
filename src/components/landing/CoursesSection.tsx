@@ -39,7 +39,7 @@ const courses = [
 
 export default function CoursesSection() {
   return (
-    <section className="bg-gray-50/80 py-12 sm:py-16 lg:py-20">
+    <section className="py-12 sm:py-16 lg:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 gap-4">
           <h2 className="text-2xl sm:text-3xl lg:text-[36px] font-bold text-gray-900 italic leading-tight">

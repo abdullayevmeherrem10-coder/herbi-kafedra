@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export default function HeroSection() {
   return (
-    <section className="bg-gradient-to-b from-white to-gray-50/50 overflow-hidden">
+    <section className="overflow-hidden">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-16 lg:py-24">
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <div className="space-y-6 sm:space-y-8 text-center lg:text-left">
