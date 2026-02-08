@@ -30,7 +30,7 @@ export async function requireRole(requiredRole: "ADMIN" | "TEACHER" | "STUDENT")
   const session = await requireAuth();
   if (!session) return null;
 
-  const userRole = (session.user as any).role as string;
+  const userRole = session.user.role;
   const roleHierarchy: Record<string, number> = { ADMIN: 3, TEACHER: 2, STUDENT: 1 };
 
   if ((roleHierarchy[userRole] || 0) < (roleHierarchy[requiredRole] || 0)) {

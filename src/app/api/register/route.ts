@@ -5,6 +5,8 @@ import { registerSchema } from "@/lib/validations";
 import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
 import { logSecurityEvent } from "@/lib/security-logger";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   const ip = getClientIp(request);
   const userAgent = request.headers.get("user-agent") || "unknown";

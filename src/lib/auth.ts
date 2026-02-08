@@ -157,8 +157,8 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role;
-        token.avatarUrl = (user as any).avatarUrl;
+        token.role = user.role;
+        token.avatarUrl = user.avatarUrl;
         // Token yaradılma vaxtını qeyd et (session hijacking aşkarlanması)
         token.iat = Math.floor(Date.now() / 1000);
       }
@@ -166,9 +166,9 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).avatarUrl = token.avatarUrl;
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.avatarUrl = token.avatarUrl;
       }
       return session;
     },

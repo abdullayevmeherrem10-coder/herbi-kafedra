@@ -6,6 +6,8 @@ import {
   type SecuritySeverity,
 } from "@/lib/security-logger";
 
+export const dynamic = "force-dynamic";
+
 // Yalnız ADMIN roluna malik istifadəçilər üçün
 export async function GET(request: Request) {
   // Autentifikasiya və avtorizasiya yoxlanışı
